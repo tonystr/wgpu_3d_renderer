@@ -1,5 +1,5 @@
 use bytemuck::{Pod, Zeroable};
-use winit::{event::{ElementState, KeyEvent, WindowEvent}, event_loop::ActiveEventLoop, keyboard::{KeyCode, PhysicalKey}};
+use winit::{event_loop::ActiveEventLoop, keyboard::{KeyCode}};
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::from_cols(

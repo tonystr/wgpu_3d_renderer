@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use winit::{ event::WindowEvent, event_loop::ActiveEventLoop, keyboard::KeyCode, window::Window };
+use winit::{ event_loop::ActiveEventLoop, keyboard::KeyCode, window::Window };
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 
@@ -66,6 +66,8 @@ pub struct State {
     pub camera_buffer: wgpu::Buffer,
     pub camera_bind_group: wgpu::BindGroup,
     pub camera_controller: CameraController,
+    pub textures: Vec<Texture>,
+    pub texture_index: usize,
 }
 
 impl State {
@@ -119,6 +121,9 @@ impl State {
 
         let diffuse_bytes = include_bytes!("../../happy-tree.png");
         let diffuse_texture = Texture::from_bytes(&device, &queue, diffuse_bytes, Some("happy-tree.png")).unwrap();
+
+        let alt_diffuse_bytes = include_bytes!("../../alt-tree.png");
+        let alt_diffuse_texture = Texture::from_bytes(&device, &queue, alt_diffuse_bytes, Some("alt-tree.png")).unwrap();
 
         let texture_bind_group_layout = device.create_bind_group_layout(
             &wgpu::BindGroupLayoutDescriptor {
@@ -286,13 +291,56 @@ impl State {
             index_buffer,
             num_indices,
             diffuse_bind_group,
-            diffuse_texture,
+            diffuse_texture: diffuse_texture.clone(),
             camera,
             camera_uniform,
             camera_buffer,
             camera_bind_group,
             camera_controller,
+            textures: vec![diffuse_texture, alt_diffuse_texture],
+            texture_index: 0,
         })
+    }
+
+    pub fn set_diffuse_bind_group(&mut self, diffuse_texture: &Texture) {
+        let texture_bind_group_layout = self.device.create_bind_group_layout(
+            &wgpu::BindGroupLayoutDescriptor {
+                label: Some("Texture Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true }
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    }
+                ],
+            }
+        );
+
+        self.diffuse_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Diffuse Bind Group"),
+            layout: &texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
+                }
+            ],
+        });
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -354,6 +402,10 @@ impl State {
     pub fn handle_key(&mut self, event_loop: &ActiveEventLoop, code: KeyCode, is_pressed: bool) {
         match (code, is_pressed) {
             (KeyCode::Escape, true) => event_loop.exit(),
+            (KeyCode::Space, true) => {
+                self.texture_index = if self.texture_index == 1 { 0 } else { 1 };
+                self.set_diffuse_bind_group(&self.textures[self.texture_index].clone());
+            },
             _ => { self.camera_controller.handle_key(event_loop, code, is_pressed); }
         }
     }
